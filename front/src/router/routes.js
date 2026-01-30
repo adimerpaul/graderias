@@ -1,0 +1,32 @@
+const routes = [
+  {
+    path: '/',
+    component: () => import('layouts/MainLayout.vue'),
+    children: [
+      { path: '', component: () => import('pages/IndexPage.vue'), meta: {requiresAuth: true} },
+      { path: 'pago-exitoso', component: () => import('pages/PagoExitoso.vue'), meta: {requiresAuth: true} },
+      { path: 'pago-cancelado', component: () => import('pages/PagoCancelado.vue'), meta: {requiresAuth: true} },
+      {
+        path: '/usuarios',
+        component: () => import('pages/usuarios/Usuarios.vue'),
+        meta: {requiresAuth: true, perm: 'Usuarios'}
+      },
+    ]
+  },
+
+  {
+    path: '/pedido',
+    component: () => import('layouts/PedidoLayout.vue'),
+    children: []
+  },
+  {
+    path: '/login',
+    component: () => import('layouts/Login.vue'),
+  },
+  {
+    path: '/:catchAll(.*)*',
+    component: () => import('pages/ErrorNotFound.vue')
+  }
+]
+
+export default routes
