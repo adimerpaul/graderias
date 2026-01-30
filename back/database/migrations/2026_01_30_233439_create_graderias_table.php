@@ -44,6 +44,8 @@ return new class extends Migration {
 
             // Estado
             $table->boolean('activo')->default(true);
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->foreign('user_id')->references('id')->on('users');
 
             $table->timestamps();
             $table->softDeletes();

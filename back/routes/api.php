@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Http\Request;
+//use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\OrderController;
+use App\Http\Controllers\GraderiaController;
 
 Route::post('/login', [App\Http\Controllers\UserController::class, 'login']);
 
@@ -21,4 +21,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/permissions', [App\Http\Controllers\UserController::class, 'permissions']);
     Route::get('/users/{user}/permissions', [App\Http\Controllers\UserController::class, 'userPermissions']);
     Route::put('/users/{user}/permissions', [App\Http\Controllers\UserController::class, 'updateUserPermissions']);
+
+    // Mis graderías (usuario logueado)
+    Route::get('mis-graderias', [GraderiaController::class, 'index']);
+    Route::post('mis-graderias', [GraderiaController::class, 'store']);
+    Route::get('mis-graderias/{graderia}', [GraderiaController::class, 'show']);
+    Route::put('mis-graderias/{graderia}', [GraderiaController::class, 'update']);
+    Route::delete('mis-graderias/{graderia}', [GraderiaController::class, 'destroy']);
+
+    // Asientos (si quieres verlos por gradería)
+    Route::get('mis-graderias/{graderia}/asientos', [AsientoController::class, 'indexByGraderia']);
 });

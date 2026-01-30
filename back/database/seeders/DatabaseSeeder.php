@@ -33,11 +33,11 @@ class DatabaseSeeder extends Seeder
         $permisos = [
             'Dashboard',
             'Usuarios',
-            'Eventos',
-            'Reservas',
-            'Idiomas',
-            'Precios',
-            'Reportes'
+            'Graderias',
+//            'Reservas',
+//            'Idiomas',
+//            'Precios',
+//            'Reportes'
         ];;
         foreach ($permisos as $permiso) {
             Permission::create(['name' => $permiso]);

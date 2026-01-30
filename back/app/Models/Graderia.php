@@ -17,6 +17,7 @@ class Graderia extends Model implements AuditableContract
         'direccion','ref_izquierda','ref_derecha','ref_frente',
         'filas','columnas','capacidad_total',
         'etiqueta_modo','start_top','start_left',
+        'user_id',
         'activo',
     ];
 

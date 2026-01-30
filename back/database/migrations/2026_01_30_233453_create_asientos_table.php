@@ -7,53 +7,46 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('graderias', function (Blueprint $table) {
+        Schema::create('asientos', function (Blueprint $table) {
             $table->id();
 
-            // Identificación
-            $table->string('nombre', 120)->nullable(); // ej: "Gradería 12 - Socavón"
-            $table->string('codigo', 40)->nullable()->unique(); // opcional: G-001
+            $table->foreignId('graderia_id')
+                ->constrained('graderias')
+                ->cascadeOnDelete();
 
-            // Dirección principal y referencias
-            $table->string('direccion', 255);
-            $table->string('ref_izquierda', 255)->nullable();
-            $table->string('ref_derecha', 255)->nullable();
-            $table->string('ref_frente', 255)->nullable();
+            // Posición lógica
+            $table->unsignedSmallInteger('fila')->nullable();     // 1..N
+            $table->unsignedSmallInteger('columna')->nullable();  // 1..N
 
-            // Layout / dimensiones
-            $table->unsignedSmallInteger('filas')->default(0);      // X (rows)
-            $table->unsignedSmallInteger('columnas')->default(0);   // Y (cols)
-            $table->unsignedInteger('capacidad_total')->default(0); // filas * columnas (guardado)
+            // Etiqueta visible: "A1", "B3", etc
+            $table->string('codigo', 10); // A1
+            $table->string('descripcion', 120)->nullable(); // opcional
 
-            /**
-             * Config de etiquetado:
-             * - 'fila' => A1, A2, A3 ... (A= fila, 1=col)
-             * - 'columna' => A1, B1, C1 ... (A= columna, 1= fila)
-             */
-            $table->enum('etiqueta_modo', ['fila', 'columna'])->default('fila');
+            // Estado del asiento
+            $table->enum('estado', ['LIBRE', 'RESERVADO', 'PAGADO', 'BLOQUEADO'])->default('LIBRE');
 
-            /**
-             * Dirección de conteo:
-             * - start_top = true: empieza arriba (A1 arriba)
-             * - start_top = false: empieza abajo
-             * - start_left = true: empieza izquierda
-             * - start_left = false: empieza derecha
-             */
-            $table->boolean('start_top')->default(true);
-            $table->boolean('start_left')->default(true);
+            // Datos cliente (simple, como pediste)
+            $table->string('cliente_nombre', 180)->nullable();
+            $table->string('cliente_celular', 30)->nullable();
+            $table->decimal('monto', 10, 2)->nullable();
 
-            // Estado
-            $table->boolean('activo')->default(true);
+            // Si quieres rastrear fecha/hora de reserva/pago
+            $table->timestamp('reservado_at')->nullable();
+            $table->timestamp('pagado_at')->nullable();
 
             $table->timestamps();
             $table->softDeletes();
 
-            $table->index(['activo']);
+            // Evita duplicar A1 dentro de la misma gradería
+            $table->unique(['graderia_id', 'codigo']);
+
+            $table->index(['graderia_id', 'estado']);
+            $table->index(['cliente_celular']);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('graderias');
+        Schema::dropIfExists('asientos');
     }
 };
