@@ -28,7 +28,18 @@
             <q-space />
 
             <q-btn dense no-caps color="primary" icon="refresh" label="Recargar" :loading="loading" @click="load()" class="q-mr-sm" />
-            <q-btn dense no-caps flat icon="clear_all" label="Limpiar selección" :disable="selectedIds.length === 0" @click="clearSelection" class="q-mr-sm" />
+<!--            btn dropdown para limpiar o gestionar-->
+            <q-btn-dropdown dense no-caps color="primary" icon="more_vert" label="Acciones" class="q-mr-sm">
+              <q-list>
+                <q-item clickable @click="modificarAsiento" v-close-popup>
+                  <q-item-section avatar>
+                    <q-icon name="edit" />
+                  </q-item-section>
+                  <q-item-section> Modificar asiento </q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+<!--            <q-btn dense no-caps flat icon="clear_all" label="Limpiar selección" :disable="selectedIds.length === 0" @click="clearSelection" class="q-mr-sm" />-->
             <q-btn dense no-caps color="primary" icon="edit" label="Gestionar selección" :disable="selectedIds.length === 0" @click="openBulkDialog()" />
           </q-card-section>
 
@@ -38,8 +49,13 @@
             <div class="row q-col-gutter-xs">
               <div class="col-6 col-md-3">
                 <q-banner dense class="bg-grey-1">
-                  <div class="text-caption text-grey-7">Total</div>
-                  <div class="text-subtitle1 text-weight-bold">{{ stats.total }}</div>
+                  <div class="text-caption text-grey-7">Total Bs</div>
+                  <div class="text-subtitle1 text-weight-bold" >
+                    <span :style="{ filter: totalMontoRealCss ? 'blur(4px)' : 'none' }">
+                      {{ totalMontoReal === 0 ? '0.00' : money(totalMontoReal) }}
+                    </span>
+                    <q-btn dense flat :icon="totalMontoRealCss ? 'visibility' : 'visibility_off'" @click="totalMontoRealCss = !totalMontoRealCss" />
+                  </div>
                 </q-banner>
               </div>
               <div class="col-6 col-md-3">
@@ -101,7 +117,8 @@
             <div class="text-subtitle2 text-weight-bold">Asientos</div>
             <q-space />
             <q-badge outline color="primary">
-              Monto selección: {{ money(selectedTotalMonto) }}
+<!--              Monto selección: {{ money(selectedTotalMonto) }}-->
+              Total {{ stats.total }} asientos
             </q-badge>
           </q-card-section>
 
@@ -129,6 +146,8 @@
                     <div style="font-size: 11px; margin-top: 2px;">
                       <span v-if="seat.cliente_nombre" class="text-grey-9">
                         {{ seat.cliente_nombre }}
+                        <br>
+                        {{ seat.monto }} Bs
                       </span>
                       <span v-else class="text-grey-6">—</span>
                     </div>
@@ -145,7 +164,7 @@
 
     <!-- DIALOG MASIVO -->
     <q-dialog v-model="bulkDialog.open">
-      <q-card style="min-width: 520px; max-width: 95vw;">
+      <q-card style="width: 520px; max-width: 95vw;">
         <q-card-section class="row items-center q-py-sm">
           <div>
             <div class="text-subtitle1 text-weight-bold">Gestionar selección</div>
@@ -184,7 +203,16 @@
               </div>
               <div class="col-6">
                 <div class="text-caption text-grey-7">Ocupados sel.</div>
-                <div class="text-weight-bold">{{ selectedStats.ocupado }}</div>
+                <div class="text-weight-bold">
+
+<!--                  {{ selectedStats.ocupado }} si es mayo de cero un rojo furerte y que diha alerta-->
+                  <span :class="selectedStats.ocupado > 0 ? 'text-negative text-weight-bold' : ''">
+                    {{ selectedStats.ocupado }}
+                    <template v-if="selectedStats.ocupado > 0">
+                    Cuidado!
+                    </template>
+                  </span>
+                </div>
               </div>
             </div>
           </q-banner>
@@ -262,6 +290,9 @@ export default {
 
   data () {
     return {
+      totalMontoRealCss: false,
+      asientoSeleccionado: null,
+      asientoSeleccionadoDialog: false,
       loading: false,
       saving: false,
       actionRunning: '',
@@ -292,6 +323,15 @@ export default {
   },
 
   computed: {
+    totalMontoReal () {
+      let sum = 0
+      for (const s of this.seatsDB) {
+        if (s.monto != null && s.monto !== '' && !isNaN(Number(s.monto))) {
+          sum += Number(s.monto)
+        }
+      }
+      return sum
+    },
     graderiaId () {
       return this.$route.params.id
     },
@@ -391,6 +431,29 @@ export default {
   },
 
   methods: {
+    modificarAsiento(){
+      this.$q.dialog({
+        title: 'Modificar Asiento',
+        message: 'Ingresa el código del asiento a modificar:',
+        prompt: { model: '',
+          type: 'text',
+          isValid: val => val.trim().length > 0,
+          label: 'Código del Asiento',
+          hint: 'Ejemplo: A1, B3, C5, etc.',
+          attrs: { maxlength: 10 }
+        },
+        cancel: true,
+      }).onOk(code => {
+        const trimmedCode = code.trim().toUpperCase();
+        const seat = this.seatsDB.find(s => s.codigo.toUpperCase() === trimmedCode);
+        if (seat) {
+          this.asientoSeleccionado = seat;
+          console.log('Asiento encontrado:', seat);
+        } else {
+          this.$alert.error(`Asiento con código "${trimmedCode}" no encontrado.`);
+        }
+      })
+    },
     normalizeEstado (v) {
       if (!v) return ''
       const up = String(v).toUpperCase()
@@ -450,6 +513,8 @@ export default {
     toggleSeat (seat) {
       // ✅ solo si existe en BD
       if (!seat?.id) return
+      // si su estao es pado no se puede selecionar
+      if (seat.status === 'PAGADO') return
 
       const id = seat.id
       const idx = this.selectedIds.indexOf(id)
