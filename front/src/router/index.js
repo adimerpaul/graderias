@@ -27,15 +27,27 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     history: createHistory(process.env.VUE_ROUTER_BASE)
   })
   Router.beforeEach((to, from, next) => {
-    if (to.matched.some(record => record.meta.requiresAuth)) {
-      if (useCounterStore().isLogged) {
-        next()
-        return
+    const store = useCounterStore()
+
+    // 🔐 Requiere login
+    if (to.matched.some(r => r.meta.requiresAuth)) {
+      if (!store.isLogged) {
+        return next('/login')
       }
-      next('/login')
-    }else {
-      next()
+
+      // 🔐 Requiere permiso específico
+      const requiredPerm = to.meta.perm
+      if (requiredPerm) {
+        if (!store.permissions.includes(requiredPerm)) {
+          // 🚫 No autorizado
+          return next('/') // o a una página 403
+        }
+      }
+
+      return next()
     }
+
+    next()
   })
 
   return Router

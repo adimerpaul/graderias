@@ -80,6 +80,15 @@
             </q-item>
 
             <q-separator />
+<!--            cambiar contrseña-->
+            <q-item clickable v-close-popup @click="$router.push('/cambiar-contrasena')">
+              <q-item-section avatar>
+                <q-icon name="vpn_key" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Cambiar Contraseña</q-item-label>
+              </q-item-section>
+            </q-item>
 
             <q-item clickable v-ripple @click="logout" v-close-popup>
               <q-item-section avatar>
