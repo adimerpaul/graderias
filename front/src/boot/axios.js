@@ -2,10 +2,12 @@ import { defineBoot } from '#q-app/wrappers'
 import axios from 'axios'
 import {Alert} from "src/addons/Alert";
 import {useCounterStore} from "stores/example-store";
+import VueApexCharts from "vue3-apexcharts";
 
 const api = axios.create({ baseURL: 'https://api.example.com' })
 
 export default defineBoot(({ app,router }) => {
+  app.use(VueApexCharts);
 
   app.config.globalProperties.$axios = axios.create({ baseURL: import.meta.env.VITE_API_BACK })
   app.config.globalProperties.$alert = Alert

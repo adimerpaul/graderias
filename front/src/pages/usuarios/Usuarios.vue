@@ -326,7 +326,7 @@ export default {
         username: '',
         email: '',
         password: '',
-        role: 'Cliente'
+        role: 'Operador'
       }
       this.userDialog = true
     },

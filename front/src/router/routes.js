@@ -29,6 +29,12 @@ const routes = [
         component: () => import('pages/graderias/GraderiaVenta.vue'),
         meta: { requiresAuth: true, perm: 'Graderias' }
       },
+      // to="/cambiar-contrasena"
+      {
+        path:'/cambiar-contrasena',
+        component: () => import('pages/cambiar-contrasena/CambiarContrasena.vue'),
+        meta: { requiresAuth: true }
+      }
 
     ]
   },

@@ -20,11 +20,11 @@
         <q-form @submit.prevent="save">
           <div class="row q-col-gutter-xs">
             <div class="col-12 col-md-6">
-              <q-input v-model="form.nombre" label="Nombre" dense outlined />
+              <q-input v-model="form.nombre" label="Nombre" dense outlined :rules="[req]" />
             </div>
 
             <div class="col-12 col-md-6">
-              <q-input v-model="form.direccion" label="Dirección" dense outlined :rules="[req]" />
+              <q-input v-model="form.direccion" label="Dirección" dense outlined  />
             </div>
 
             <div class="col-6 col-md-2">

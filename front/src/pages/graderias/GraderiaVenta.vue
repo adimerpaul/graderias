@@ -67,10 +67,17 @@
                 <q-banner dense class="bg-grey-1">
                   <div class="text-caption text-grey-7">Total Bs</div>
                   <div class="text-subtitle1 text-weight-bold" >
-                    <span :style="{ filter: totalMontoRealCss ? 'blur(4px)' : 'none' }">
-                      {{ totalMontoReal === 0 ? '0.00' : money(totalMontoReal) }}
-                    </span>
-                    <q-btn dense flat :icon="totalMontoRealCss ? 'visibility' : 'visibility_off'" @click="totalMontoRealCss = !totalMontoRealCss" />
+                    <span :style="{ filter: mostrarMontoReal ? 'none' : 'blur(4px)' }">
+  {{ totalMontoReal === 0 ? '0.00' : money(totalMontoReal) }}
+</span>
+
+                    <q-btn
+                      dense
+                      flat
+                      :icon="mostrarMontoReal ? 'visibility' : 'visibility_off'"
+                      @click="mostrarMontoReal = !mostrarMontoReal"
+                    />
+
                   </div>
                 </q-banner>
               </div>
@@ -530,6 +537,7 @@ export default {
         ]
       },
       totalMontoRealCss: false,
+      mostrarMontoReal: true,
       // asientoSeleccionado: null,
       // asientoSeleccionadoDialog: false,
       loading: false,
@@ -746,8 +754,16 @@ export default {
       return matrix
     }
   },
+  watch: {
+    mostrarMontoReal (val) {
+      localStorage.setItem('graderia_mostrar_monto', val ? '1' : '0')
+    }
+  },
 
   mounted () {
+    const v = localStorage.getItem('graderia_mostrar_monto')
+    this.mostrarMontoReal = (v === null) ? true : (v === '1')
+
     this.load()
   },
 
