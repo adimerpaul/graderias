@@ -37,6 +37,18 @@
                   </q-item-section>
                   <q-item-section> Modificar asiento </q-item-section>
                 </q-item>
+                <q-item clickable @click="imprimirPorCliente" v-close-popup>
+                  <q-item-section avatar><q-icon name="print" /></q-item-section>
+                  <q-item-section>Imprimir por clientes</q-item-section>
+                </q-item>
+
+                <q-item clickable @click="imprimirPorAsiento" v-close-popup>
+                  <q-item-section avatar><q-icon name="print" /></q-item-section>
+                  <q-item-section>Imprimir por asientos</q-item-section>
+                </q-item>
+
+                <!--                imprirmi por cliente -->
+<!--                imprimir por hacieno-->
               </q-list>
             </q-btn-dropdown>
 <!--            <q-btn dense no-caps flat icon="clear_all" label="Limpiar selección" :disable="selectedIds.length === 0" @click="clearSelection" class="q-mr-sm" />-->
@@ -281,18 +293,122 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+    <!-- DIALOG MODIFICAR ASIENTO (ADMIN) -->
+    <q-dialog v-model="asientoSeleccionadoDialog">
+      <q-card style="width: 540px; max-width: 95vw;">
+        <q-card-section class="row items-center q-py-sm">
+          <div>
+            <div class="text-subtitle1 text-weight-bold">
+              Modificar Asiento: {{ asientoEdit.codigo }}
+            </div>
+            <div class="text-caption text-grey-7">
+              Estado actual: <b>{{ asientoSeleccionado?.estado }}</b>
+              <span v-if="asientoSeleccionado?.cliente_nombre"> — {{ asientoSeleccionado?.cliente_nombre }}</span>
+            </div>
+          </div>
+          <q-space />
+          <q-btn dense flat round icon="close" v-close-popup />
+        </q-card-section>
+
+        <q-separator />
+
+        <q-card-section class="q-pa-sm">
+          <div class="row q-col-gutter-sm">
+            <div class="col-12 col-md-6">
+              <q-select
+                v-model="asientoEdit.estado"
+                dense outlined
+                label="Estado"
+                :options="estadoOptions"
+                emit-value
+                map-options
+              />
+            </div>
+
+            <div class="col-12 col-md-6">
+              <q-input
+                v-model.number="asientoEdit.monto"
+                dense outlined
+                type="number"
+                label="Monto (Bs)"
+                :min="0"
+                step="1"
+                clearable
+              />
+            </div>
+
+            <div class="col-12 col-md-6">
+              <q-input
+                v-model="asientoEdit.cliente_nombre"
+                dense outlined
+                label="Cliente"
+                clearable
+              />
+            </div>
+
+            <div class="col-12 col-md-6">
+              <q-input
+                v-model="asientoEdit.cliente_celular"
+                dense outlined
+                label="Celular"
+                clearable
+              />
+            </div>
+          </div>
+
+          <q-banner dense class="bg-grey-1 q-mt-sm">
+            <div class="text-caption text-grey-7">
+              Tips:
+              <ul class="q-ma-none q-pl-md">
+                <li>LIBRE limpia cliente/monto/fechas</li>
+                <li>PAGADO setea pagado_at</li>
+                <li>RESERVADO setea reservado_at</li>
+              </ul>
+            </div>
+          </q-banner>
+        </q-card-section>
+
+        <q-separator />
+
+        <q-card-actions align="between" class="q-px-md q-py-sm">
+          <q-btn
+            color="negative"
+            flat
+            no-caps
+            icon="restart_alt"
+            label="Liberar asiento"
+            :loading="modificando"
+            @click="liberarAsientoDirecto"
+          />
+          <div class="row q-gutter-sm">
+            <q-btn flat no-caps label="Cancelar" v-close-popup />
+            <q-btn
+              color="primary"
+              no-caps
+              icon="save"
+              label="Guardar cambios"
+              :loading="modificando"
+              @click="guardarAsientoDirecto"
+            />
+          </div>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
 <script>
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 export default {
   name: 'GraderiaVenta',
 
   data () {
     return {
       totalMontoRealCss: false,
-      asientoSeleccionado: null,
-      asientoSeleccionadoDialog: false,
+      // asientoSeleccionado: null,
+      // asientoSeleccionadoDialog: false,
       loading: false,
       saving: false,
       actionRunning: '',
@@ -318,7 +434,26 @@ export default {
         RESERVADO:   { label: 'Reservado',   color: 'warning',  bg: '#f3d77d' },
         PAGADO:      { label: 'Pagado',      color: 'primary',  bg: '#79bcee' },
         BLOQUEADO:   { label: 'Bloqueado',   color: 'negative', bg: '#ec7385' }
-      }
+      },
+      modificando: false,
+      asientoSeleccionado: null,
+      asientoSeleccionadoDialog: false,
+
+      asientoEdit: {
+        id: null,
+        codigo: '',
+        estado: 'LIBRE',
+        cliente_nombre: '',
+        cliente_celular: '',
+        monto: null
+      },
+
+      estadoOptions: [
+        { label: 'LIBRE', value: 'LIBRE' },
+        { label: 'RESERVADO', value: 'RESERVADO' },
+        { label: 'PAGADO', value: 'PAGADO' },
+        { label: 'BLOQUEADO', value: 'BLOQUEADO' }
+      ],
     }
   },
 
@@ -431,27 +566,341 @@ export default {
   },
 
   methods: {
-    modificarAsiento(){
+    validarAsientoEdit (payload) {
+      // reglas simples (ajusta si quieres)
+      if (payload.estado === 'RESERVADO' || payload.estado === 'PAGADO') {
+        if (!payload.cliente_nombre || !payload.cliente_celular) {
+          this.$alert.error('Para RESERVADO/PAGADO necesitas cliente y celular.')
+          return false
+        }
+        if (payload.monto === null || payload.monto === '' || isNaN(Number(payload.monto))) {
+          this.$alert.error('Para RESERVADO/PAGADO necesitas un monto.')
+          return false
+        }
+      }
+      return true
+    },
+
+    async guardarAsientoDirecto () {
+      if (!this.asientoEdit?.id) return
+
+      const payload = {
+        estado: this.asientoEdit.estado,
+        cliente_nombre: this.asientoEdit.cliente_nombre || null,
+        cliente_celular: this.asientoEdit.cliente_celular || null,
+        monto: (this.asientoEdit.monto === null || this.asientoEdit.monto === '' || isNaN(Number(this.asientoEdit.monto)))
+          ? null
+          : Number(this.asientoEdit.monto)
+      }
+
+      if (!this.validarAsientoEdit(payload)) return
+
+      this.modificando = true
+      try {
+        const { data } = await this.$axios.patch(`mis-graderias/${this.graderiaId}/asientos/${this.asientoEdit.id}`, payload)
+
+        const updated = data.asiento
+
+        // update maps/local list
+        this.seatDBMap = { ...this.seatDBMap, [updated.codigo]: updated }
+
+        const idx = this.seatsDB.findIndex(x => x.id === updated.id)
+        if (idx !== -1) {
+          const copy = [...this.seatsDB]
+          copy.splice(idx, 1, updated)
+          this.seatsDB = copy
+        } else {
+          this.seatsDB = [...this.seatsDB, updated]
+        }
+
+        this.$alert.success('Asiento actualizado')
+        this.asientoSeleccionadoDialog = false
+      } catch (e) {
+        this.$alert.error(e.response?.data?.message || 'No se pudo actualizar asiento')
+      } finally {
+        this.modificando = false
+      }
+    },
+
+    async liberarAsientoDirecto () {
+      if (!this.asientoEdit?.id) return
+
+      this.$q.dialog({
+        title: 'Confirmar',
+        message: `¿Seguro que quieres LIBERAR el asiento ${this.asientoEdit.codigo}?`,
+        cancel: true,
+        ok: { label: 'Sí, liberar', color: 'negative', noCaps: true }
+      }).onOk(async () => {
+        this.modificando = true
+        try {
+          const { data } = await this.$axios.patch(`mis-graderias/${this.graderiaId}/asientos/${this.asientoEdit.id}`, {
+            estado: 'LIBRE',
+            cliente_nombre: null,
+            cliente_celular: null,
+            monto: null
+          })
+
+          const updated = data.asiento
+          this.seatDBMap = { ...this.seatDBMap, [updated.codigo]: updated }
+
+          const idx = this.seatsDB.findIndex(x => x.id === updated.id)
+          if (idx !== -1) {
+            const copy = [...this.seatsDB]
+            copy.splice(idx, 1, updated)
+            this.seatsDB = copy
+          }
+
+          this.$alert.success('Asiento liberado')
+          this.asientoSeleccionadoDialog = false
+        } catch (e) {
+          this.$alert.error(e.response?.data?.message || 'No se pudo liberar asiento')
+        } finally {
+          this.modificando = false
+        }
+      })
+    },
+    pad2 (n) { return String(n).padStart(2, '0') },
+
+    fmtDateTime (v) {
+      if (!v) return ''
+      const d = new Date(v)
+      if (isNaN(d.getTime())) return String(v)
+      return `${this.pad2(d.getDate())}/${this.pad2(d.getMonth()+1)}/${d.getFullYear()} ${this.pad2(d.getHours())}:${this.pad2(d.getMinutes())}`
+    },
+
+    safe (v) {
+      return (v === null || v === undefined) ? '' : String(v)
+    },
+
+    seatSortKey (codigo) {
+      // Orden alfabético: "A1", "A10", "B2" correctamente
+      // separa letras y número: A + 10
+      const m = String(codigo || '').toUpperCase().match(/^([A-Z]+)(\d+)$/)
+      if (!m) return { letters: codigo, num: 0 }
+      return { letters: m[1], num: Number(m[2]) }
+    },
+
+    sortSeatsByCodigo (arr) {
+      return [...arr].sort((a, b) => {
+        const ka = this.seatSortKey(a.codigo)
+        const kb = this.seatSortKey(b.codigo)
+        if (ka.letters < kb.letters) return -1
+        if (ka.letters > kb.letters) return 1
+        return ka.num - kb.num
+      })
+    },
+
+    statusLabel (estado) {
+      const up = this.normalizeEstado(estado) || 'LIBRE'
+      return this.statusMeta[up]?.label || up
+    },
+    imprimirPorAsiento () {
+      if (!this.graderia) return
+
+      const seats = this.sortSeatsByCodigo(this.seatsDB.map(s => ({
+        codigo: s.codigo,
+        estado: this.normalizeEstado(s.estado) || 'LIBRE',
+        cliente_nombre: s.cliente_nombre,
+        cliente_celular: s.cliente_celular,
+        monto: s.monto,
+        reservado_at: s.reservado_at,
+        pagado_at: s.pagado_at,
+        created_at: s.created_at // si no viene, lo dejamos vacío
+      })))
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' })
+
+      const title = `Reporte por Asientos - ${this.safe(this.graderia.nombre)}`
+      const now = this.fmtDateTime(new Date())
+
+      doc.setFontSize(14)
+      doc.text(title, 40, 35)
+
+      doc.setFontSize(10)
+      doc.text(`Dirección: ${this.safe(this.graderia.direccion)}`, 40, 55)
+      doc.text(`Generado: ${now}`, 40, 70)
+      doc.text(`Usuario: ${this.safe(this.$store?.user?.name || this.$store?.user?.nombre || '')}`, 40, 85)
+
+      const head = [[
+        'Asiento', 'Estado', 'Cliente', 'Celular', 'Monto (Bs)', 'Reservado', 'Pagado', 'Creado'
+      ]]
+
+      const body = seats.map(s => ([
+        this.safe(s.codigo),
+        this.statusLabel(s.estado),
+        this.safe(s.cliente_nombre),
+        this.safe(s.cliente_celular),
+        (s.monto != null && s.monto !== '' && !isNaN(Number(s.monto))) ? this.money(Number(s.monto)) : '',
+        this.fmtDateTime(s.reservado_at),
+        this.fmtDateTime(s.pagado_at),
+        this.fmtDateTime(s.created_at)
+      ]))
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 105,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
+        headStyles: { fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 55 }, // asiento
+          1: { cellWidth: 70 }, // estado
+          2: { cellWidth: 140 }, // cliente
+          3: { cellWidth: 70 }, // celular
+          4: { cellWidth: 60 }, // monto
+          5: { cellWidth: 75 }, // reservado
+          6: { cellWidth: 75 }, // pagado
+          7: { cellWidth: 75 }  // creado
+        },
+        didDrawPage: (data) => {
+          const pageCount = doc.getNumberOfPages()
+          doc.setFontSize(9)
+          doc.text(`Página ${data.pageNumber} de ${pageCount}`, doc.internal.pageSize.getWidth() - 110, doc.internal.pageSize.getHeight() - 15)
+        }
+      })
+
+      const filename = `graderia_${this.graderiaId}_asientos_${Date.now()}.pdf`
+      doc.save(filename)
+    },
+    imprimirPorCliente () {
+      if (!this.graderia) return
+
+      // solo asientos con cliente (reservado/pagado normalmente)
+      const seats = this.seatsDB
+        .filter(s => (s.cliente_nombre && String(s.cliente_nombre).trim() !== '') || (s.cliente_celular && String(s.cliente_celular).trim() !== ''))
+        .map(s => ({
+          codigo: s.codigo,
+          estado: this.normalizeEstado(s.estado) || 'LIBRE',
+          cliente_nombre: (s.cliente_nombre || '').trim(),
+          cliente_celular: (s.cliente_celular || '').trim(),
+          monto: s.monto,
+          reservado_at: s.reservado_at,
+          pagado_at: s.pagado_at,
+          created_at: s.created_at
+        }))
+
+      // agrupar por "cliente_nombre|celular"
+      const map = {}
+      for (const s of seats) {
+        const key = `${(s.cliente_nombre || '').toUpperCase()}|${(s.cliente_celular || '')}`
+        if (!map[key]) map[key] = { nombre: s.cliente_nombre, celular: s.cliente_celular, items: [] }
+        map[key].items.push(s)
+      }
+
+      // ordenar clientes alfabético
+      const groups = Object.values(map).sort((a, b) => {
+        const an = (a.nombre || '').toUpperCase()
+        const bn = (b.nombre || '').toUpperCase()
+        if (an < bn) return -1
+        if (an > bn) return 1
+        return (a.celular || '').localeCompare(b.celular || '')
+      })
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' })
+
+      const title = `Reporte por Clientes - ${this.safe(this.graderia.nombre)}`
+      const now = this.fmtDateTime(new Date())
+
+      doc.setFontSize(14)
+      doc.text(title, 40, 35)
+
+      doc.setFontSize(10)
+      doc.text(`Dirección: ${this.safe(this.graderia.direccion)}`, 40, 55)
+      doc.text(`Generado: ${now}`, 40, 70)
+      doc.text(`Usuario: ${this.safe(this.$store?.user?.name || this.$store?.user?.nombre || '')}`, 40, 85)
+
+      let cursorY = 105
+
+      for (const g of groups) {
+        // si queda poco espacio, nueva página
+        if (cursorY > 720) {
+          doc.addPage()
+          cursorY = 40
+        }
+
+        const itemsSorted = this.sortSeatsByCodigo(g.items)
+
+        const total = itemsSorted.reduce((acc, it) => {
+          const m = (it.monto != null && it.monto !== '' && !isNaN(Number(it.monto))) ? Number(it.monto) : 0
+          return acc + m
+        }, 0)
+
+        doc.setFontSize(11)
+        doc.text(`Cliente: ${this.safe(g.nombre)}  —  Cel: ${this.safe(g.celular)}  —  Total: ${this.money(total)} Bs`, 40, cursorY)
+        cursorY += 10
+
+        const head = [[ 'Asiento', 'Estado', 'Monto (Bs)', 'Reservado', 'Pagado', 'Creado' ]]
+        const body = itemsSorted.map(it => ([
+          this.safe(it.codigo),
+          this.statusLabel(it.estado),
+          (it.monto != null && it.monto !== '' && !isNaN(Number(it.monto))) ? this.money(Number(it.monto)) : '',
+          this.fmtDateTime(it.reservado_at),
+          this.fmtDateTime(it.pagado_at),
+          this.fmtDateTime(it.created_at)
+        ]))
+
+        autoTable(doc, {
+          head,
+          body,
+          startY: cursorY + 8,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
+          headStyles: { fontStyle: 'bold' },
+          margin: { left: 40, right: 40 },
+          didDrawPage: (data) => {
+            const pageCount = doc.getNumberOfPages()
+            doc.setFontSize(9)
+            doc.text(`Página ${data.pageNumber} de ${pageCount}`, doc.internal.pageSize.getWidth() - 110, doc.internal.pageSize.getHeight() - 15)
+          }
+        })
+
+        cursorY = doc.lastAutoTable.finalY + 18
+      }
+
+      if (groups.length === 0) {
+        doc.setFontSize(11)
+        doc.text('No hay asientos con cliente para imprimir.', 40, 130)
+      }
+
+      const filename = `graderia_${this.graderiaId}_clientes_${Date.now()}.pdf`
+      doc.save(filename)
+    },
+    modificarAsiento () {
       this.$q.dialog({
         title: 'Modificar Asiento',
         message: 'Ingresa el código del asiento a modificar:',
-        prompt: { model: '',
+        prompt: {
+          model: '',
           type: 'text',
           isValid: val => val.trim().length > 0,
           label: 'Código del Asiento',
-          hint: 'Ejemplo: A1, B3, C5, etc.',
+          hint: 'Ejemplo: A1, B3, C5...',
           attrs: { maxlength: 10 }
         },
-        cancel: true,
+        cancel: true
       }).onOk(code => {
-        const trimmedCode = code.trim().toUpperCase();
-        const seat = this.seatsDB.find(s => s.codigo.toUpperCase() === trimmedCode);
-        if (seat) {
-          this.asientoSeleccionado = seat;
-          console.log('Asiento encontrado:', seat);
-        } else {
-          this.$alert.error(`Asiento con código "${trimmedCode}" no encontrado.`);
+        const trimmedCode = String(code || '').trim().toUpperCase()
+        const seat = this.seatsDB.find(s => String(s.codigo || '').toUpperCase() === trimmedCode)
+
+        if (!seat) {
+          this.$alert.error(`Asiento con código "${trimmedCode}" no encontrado.`)
+          return
         }
+
+        this.asientoSeleccionado = seat
+
+        // precarga editor
+        this.asientoEdit = {
+          id: seat.id,
+          codigo: seat.codigo,
+          estado: (seat.estado || 'LIBRE').toUpperCase(),
+          cliente_nombre: seat.cliente_nombre || '',
+          cliente_celular: seat.cliente_celular || '',
+          monto: seat.monto != null ? Number(seat.monto) : null
+        }
+
+        this.asientoSeleccionadoDialog = true
       })
     },
     normalizeEstado (v) {
@@ -515,6 +964,8 @@ export default {
       if (!seat?.id) return
       // si su estao es pado no se puede selecionar
       if (seat.status === 'PAGADO') return
+      // si es bloqueado
+      if (seat.status === 'BLOQUEADO') return
 
       const id = seat.id
       const idx = this.selectedIds.indexOf(id)
