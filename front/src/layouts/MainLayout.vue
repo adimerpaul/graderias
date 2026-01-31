@@ -233,7 +233,7 @@ export default {
     }
   },
   mounted () {
-    this.fetchMenuEventos()
+    // this.fetchMenuEventos()
   },
   computed: {
     roleText () {
@@ -243,15 +243,15 @@ export default {
     }
   },
   methods: {
-    fetchMenuEventos () {
-      this.$axios.get('/eventosMenu')
-        .then(res => {
-          this.$store.menuEventosByPais = res.data.items || []
-        })
-        .catch(() => {
-          this.$store.menuEventosByPais = []
-        })
-    },
+    // fetchMenuEventos () {
+    //   this.$axios.get('/eventosMenu')
+    //     .then(res => {
+    //       this.$store.menuEventosByPais = res.data.items || []
+    //     })
+    //     .catch(() => {
+    //       this.$store.menuEventosByPais = []
+    //     })
+    // },
     toggleLeftDrawer () {
       this.leftDrawerOpen = !this.leftDrawerOpen
     },

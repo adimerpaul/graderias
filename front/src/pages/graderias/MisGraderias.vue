@@ -66,14 +66,6 @@
         </q-td>
       </template>
 
-      <template v-slot:body-cell-activo="props">
-        <q-td :props="props">
-          <q-badge :color="props.row.activo ? 'positive' : 'grey-6'">
-            {{ props.row.activo ? 'Activo' : 'Inactivo' }}
-          </q-badge>
-        </q-td>
-      </template>
-
       <template v-slot:body-cell_layout="props">
         <q-td :props="props">
           <q-badge outline color="primary" class="q-mr-xs">
@@ -81,6 +73,14 @@
           </q-badge>
           <q-badge outline color="grey-7">
             Total: {{ props.row.capacidad_total }}
+          </q-badge>
+        </q-td>
+      </template>
+
+      <template v-slot:body-cell_activo="props">
+        <q-td :props="props">
+          <q-badge :color="props.row.activo ? 'positive' : 'grey-6'">
+            {{ props.row.activo ? 'Activo' : 'Inactivo' }}
           </q-badge>
         </q-td>
       </template>
@@ -100,7 +100,6 @@ export default {
       columns: [
         { name: 'actions', label: 'Acciones', align: 'center' },
         { name: 'nombre', label: 'Nombre', align: 'left', field: 'nombre' },
-        { name: 'codigo', label: 'Código', align: 'left', field: 'codigo' },
         { name: 'direccion', label: 'Dirección', align: 'left', field: 'direccion' },
         { name: 'layout', label: 'Layout', align: 'left', field: row => `${row.filas}x${row.columnas}` },
         { name: 'activo', label: 'Estado', align: 'left', field: 'activo' }
@@ -124,7 +123,6 @@ export default {
     },
 
     deleteRow (id) {
-      // sin validaciones como pediste (directo)
       this.loading = true
       this.$axios.delete(`mis-graderias/${id}`)
         .then(() => {
