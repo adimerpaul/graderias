@@ -123,7 +123,7 @@ class GraderiaController extends Controller
 
         $data = $request->validate([
             'nombre' => 'nullable|string|max:120',
-            'direccion' => 'required|string|max:255',
+            'direccion' => 'nullable|string|max:255',
             'filas' => 'required|integer|min:1|max:500',
             'columnas' => 'required|integer|min:1|max:500',
             'etiqueta_modo' => 'required|in:fila,columna',

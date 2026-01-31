@@ -8,6 +8,11 @@ use App\Http\Controllers\AsientoController;
 Route::post('/login', [App\Http\Controllers\UserController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/me/password', [App\Http\Controllers\UserController::class, 'changeMyPassword']);
+
+    // Admin resetea contraseña de otro usuario
+    Route::post('/users/{user}/password-reset', [App\Http\Controllers\UserController::class, 'adminResetPassword']);
+
     Route::get('/me', [App\Http\Controllers\UserController::class, 'me']);
     Route::post('/logout', [App\Http\Controllers\UserController::class, 'logout']);
 

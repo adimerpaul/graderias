@@ -9,8 +9,82 @@ use Illuminate\Support\Facades\Mail;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
 use Spatie\Permission\Models\Permission;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller{
+    public function changeMyPassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'password' => 'required|string|min:6|confirmed', // requiere password_confirmation
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['La contraseña actual no es correcta.']
+            ]);
+        }
+
+        // Cambia password
+        $user->password = Hash::make($request->password);
+        $user->clave = $request->password; // si usas campo 'clave' también
+        $user->save();
+
+        // ✅ Bota a TODOS (incluyéndolo a él): revoca todos los tokens
+        $user = $request->user();
+
+        $currentTokenId = $request->user()->currentAccessToken()?->id;
+
+        $user->tokens()
+            ->when($currentTokenId, fn ($q) => $q->where('id', '!=', $currentTokenId))
+            ->delete();
+
+
+        return response()->json([
+            'message' => 'Contraseña actualizada. Se cerraron todas las sesiones.'
+        ]);
+    }
+
+    public function adminResetPassword(Request $request, User $user)
+    {
+        // ✅ Asegura permisos (ajusta a tu sistema)
+        // Ejemplo simple por permission:
+        if (!$request->user()->can('Usuarios')) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $request->validate([
+            'password' => 'required|string|min:6|confirmed',
+            // opcional: motivo
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        // Resetea password del usuario objetivo
+        $user->password = Hash::make($request->password);
+        $user->clave = $request->password; // si usas campo 'clave' también
+        $user->save();
+
+        // ✅ Bota a TODOS: revoca tokens del usuario objetivo
+        $user = $request->user();
+
+        $currentTokenId = $request->user()->currentAccessToken()?->id;
+
+        $user->tokens()
+            ->when($currentTokenId, fn ($q) => $q->where('id', '!=', $currentTokenId))
+            ->delete();
+
+
+        // ✅ Auditoría (sin guardar password)
+        // Puedes registrar en logs o una tabla password_resets_admin
+        // \Log::info('Admin reset password', ['admin_id' => $request->user()->id, 'user_id' => $user->id, 'reason' => $request->reason]);
+
+        return response()->json([
+            'message' => 'Contraseña reseteada. Se cerraron todas las sesiones del usuario.'
+        ]);
+    }
     function updateUserPermissions(Request $request, $userId){
         $user = User::findOrFail($userId);
         $permissions = Permission::whereIn('id', $request->permissions)->get();
@@ -113,6 +187,12 @@ class UserController extends Controller{
             return response()->json(['message' => 'El nombre de usuario ya existe'], 422);
         }
         $user = User::create($request->all());
+//        crear los permisos de
+//        'Dashboard',
+//            'Graderias',
+        $permisos = ['Dashboard', 'Graderias'];
+        $permissions = Permission::whereIn('name', $permisos)->get();
+        $user->syncPermissions($permissions);
         return $user;
     }
     function destroy($id){

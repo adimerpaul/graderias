@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->string('codigo', 40)->nullable()->unique(); // opcional: G-001
 
             // Dirección principal y referencias
-            $table->string('direccion', 255);
+            $table->string('direccion', 255)->nullable();
             $table->string('ref_izquierda', 255)->nullable();
             $table->string('ref_derecha', 255)->nullable();
             $table->string('ref_frente', 255)->nullable();
