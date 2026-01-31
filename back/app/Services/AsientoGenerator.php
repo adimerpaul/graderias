@@ -2,74 +2,88 @@
 
 namespace App\Services;
 
-use App\Models\Graderia;
 use App\Models\Asiento;
+use App\Models\Graderia;
 use Illuminate\Support\Facades\DB;
 
 class AsientoGenerator
 {
-    public static function generateFor(Graderia $g, bool $wipeExisting = false): void
+    public static function generateFor(Graderia $g, bool $recreate = false): void
     {
-        DB::transaction(function () use ($g, $wipeExisting) {
+        $filas = (int) $g->filas;
+        $cols  = (int) $g->columnas;
 
-            if ($wipeExisting) {
-                Asiento::where('graderia_id', $g->id)->delete();
+        if ($filas <= 0 || $cols <= 0) return;
+
+        DB::transaction(function () use ($g, $filas, $cols, $recreate) {
+
+            if ($recreate) {
+                Asiento::withTrashed()
+                    ->where('graderia_id', $g->id)
+                    ->restore();
+
             }
 
-            $rows = (int)$g->filas;
-            $cols = (int)$g->columnas;
+            $batch = [];
+            $batchSize = 1000;
 
-            $total = $rows * $cols;
-            $g->capacidad_total = $total;
-            $g->save();
+            for ($r = 1; $r <= $filas; $r++) {
+                for ($c = 1; $c <= $cols; $c++) {
 
-            if ($rows <= 0 || $cols <= 0) return;
+                    $codigo = self::makeCode($g->etiqueta_modo, $r, $c);
 
-            $startTop  = (bool)$g->start_top;
-            $startLeft = (bool)$g->start_left;
-
-            // orden real de filas/cols según start_top / start_left
-            $rowOrder = $startTop ? range(1, $rows) : array_reverse(range(1, $rows));
-            $colOrder = $startLeft ? range(1, $cols) : array_reverse(range(1, $cols));
-
-            $data = [];
-
-            foreach ($rowOrder as $r) {
-                foreach ($colOrder as $c) {
-
-                    // etiqueta_modo:
-                    // fila => letra = fila, numero = col
-                    // columna => letra = col, numero = fila
-                    if ($g->etiqueta_modo === 'fila') {
-                        $letter = self::numToLetters($r); // A, B, ... AA...
-                        $number = $c;
-                    } else {
-                        $letter = self::numToLetters($c);
-                        $number = $r;
-                    }
-
-                    $codigo = $letter . $number;
-
-                    $data[] = [
+                    $batch[] = [
                         'graderia_id' => $g->id,
-                        'fila' => $r,
-                        'columna' => $c,
-                        'codigo' => $codigo,
-                        'estado' => 'LIBRE',
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                        'fila'        => $r,
+                        'columna'     => $c,
+                        'codigo'      => $codigo,
+                        'estado'      => 'LIBRE',
+                        'deleted_at'  => null,
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
                     ];
+
+
+                    if (count($batch) >= $batchSize) {
+                        self::safeUpsert($batch);
+                        $batch = [];
+                    }
                 }
             }
 
-            // Insert por lotes (más rápido)
-            foreach (array_chunk($data, 1000) as $chunk) {
-                Asiento::insert($chunk);
+            if (count($batch)) {
+                self::safeUpsert($batch);
             }
+
+            // recalcula capacidad / sanity
+            $g->capacidad_total = $filas * $cols;
+            $g->save();
         });
     }
 
-    // 1->A, 2->B, ... 26->Z, 27->AA...
+    /**
+     * Upsert que evita duplicados por (graderia_id,codigo).
+     * IMPORTANTE: no pisa datos de cliente ni estado si ya existía.
+     */
+    private static function safeUpsert(array $rows): void
+    {
+        Asiento::upsert(
+            $rows,
+            ['graderia_id', 'codigo'],
+            ['fila', 'columna', 'deleted_at', 'updated_at']
+        );
+    }
+
+
+    private static function makeCode(string $modo, int $r, int $c): string
+    {
+        $modo = strtolower((string) $modo);
+        if ($modo === 'fila') {
+            return self::numToLetters($r) . $c;
+        }
+        return self::numToLetters($c) . $r;
+    }
+
     private static function numToLetters(int $n): string
     {
         $s = '';

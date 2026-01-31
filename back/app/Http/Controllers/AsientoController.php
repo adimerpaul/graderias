@@ -2,41 +2,99 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Graderia;
 use App\Models\Asiento;
+use App\Models\Graderia;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AsientoController extends Controller
 {
-    // GET /mis-graderias/{graderia}/asientos?search=&estado=&per_page=50
-    public function indexByGraderia(Request $request, Graderia $graderia)
+    // POST /mis-graderias/{graderia}/asientos/bulk
+    public function bulkUpdate(Request $request, Graderia $graderia)
     {
         if ((int)$graderia->user_id !== (int)$request->user()->id) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $search  = trim((string)$request->query('search', ''));
-        $estado  = strtoupper(trim((string)$request->query('estado', '')));
-        $perPage = (int)$request->query('per_page', 50);
-        $perPage = max(10, min($perPage, 200));
+        $data = $request->validate([
+            'seat_ids'        => 'required|array|min:1',
+            'seat_ids.*'      => 'integer',
+            'estado'          => 'required|in:LIBRE,RESERVADO,PAGADO,BLOQUEADO',
+            'cliente_nombre'  => 'nullable|string|max:120',
+            'cliente_celular' => 'nullable|string|max:40',
+            'monto_total'     => 'nullable|numeric|min:0',
+        ]);
 
-        $q = Asiento::query()
-            ->where('graderia_id', $graderia->id)
-            ->orderBy('fila')
-            ->orderBy('columna');
+        $seats = Asiento::where('graderia_id', $graderia->id)
+            ->whereIn('id', $data['seat_ids'])
+            ->orderBy('id')
+            ->get();
 
-        if ($search !== '') {
-            $q->where(function ($qq) use ($search) {
-                $qq->where('codigo', 'like', "%{$search}%")
-                    ->orWhere('cliente_nombre', 'like', "%{$search}%")
-                    ->orWhere('cliente_celular', 'like', "%{$search}%");
-            });
-        }
+        $count = $seats->count();
 
-        if (in_array($estado, ['LIBRE', 'RESERVADO', 'PAGADO', 'BLOQUEADO'], true)) {
-            $q->where('estado', $estado);
-        }
+        DB::transaction(function () use ($seats, $data, $count) {
 
-        return $q->paginate($perPage);
+            $montoBase = null;
+            $resto = 0;
+
+            if ($data['monto_total'] !== null && $count > 0) {
+                $montoBase = floor($data['monto_total'] / $count);
+                $resto = $data['monto_total'] - ($montoBase * $count);
+            }
+
+            foreach ($seats as $i => $s) {
+                $montoFinal = $montoBase;
+                if ($resto > 0) {
+                    $montoFinal++;
+                    $resto--;
+                }
+
+                switch ($data['estado']) {
+                    case 'LIBRE':
+                        $s->estado = 'LIBRE';
+                        $s->cliente_nombre = null;
+                        $s->cliente_celular = null;
+                        $s->monto = null;
+                        $s->reservado_at = null;
+                        $s->pagado_at = null;
+                        break;
+
+                    case 'RESERVADO':
+                        $s->estado = 'RESERVADO';
+                        $s->cliente_nombre = $data['cliente_nombre'];
+                        $s->cliente_celular = $data['cliente_celular'];
+                        $s->monto = $montoFinal;
+                        $s->reservado_at = now();
+                        $s->pagado_at = null;
+                        break;
+
+                    case 'PAGADO':
+                        $s->estado = 'PAGADO';
+                        $s->cliente_nombre = $data['cliente_nombre'];
+                        $s->cliente_celular = $data['cliente_celular'];
+                        $s->monto = $montoFinal;
+                        $s->reservado_at = $s->reservado_at ?: now();
+                        $s->pagado_at = now();
+                        break;
+
+                    case 'BLOQUEADO':
+                        $s->estado = 'BLOQUEADO';
+                        $s->cliente_nombre = null;
+                        $s->cliente_celular = null;
+                        $s->monto = null;
+                        $s->reservado_at = null;
+                        $s->pagado_at = null;
+                        break;
+                }
+
+                $s->save();
+            }
+        });
+
+        return response()->json([
+            'ok' => true,
+            'updated' => $seats
+        ]);
     }
+
 }

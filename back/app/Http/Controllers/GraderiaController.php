@@ -7,6 +7,65 @@ use Illuminate\Http\Request;
 
 class GraderiaController extends Controller
 {
+    public function repair(Request $request, Graderia $graderia)
+    {
+        if ((int)$graderia->user_id !== (int)$request->user()->id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // solo completa faltantes (no borra)
+        \App\Services\AsientoGenerator::generateFor($graderia, false);
+
+        $expected = ((int)$graderia->filas) * ((int)$graderia->columnas);
+        $count = $graderia->asientos()->count();
+
+        return response()->json([
+            'ok' => true,
+            'expected' => $expected,
+            'count' => $count,
+            'missing' => max(0, $expected - $count),
+        ]);
+    }
+
+    public function venta(Request $request, Graderia $graderia)
+    {
+        if ((int)$graderia->user_id !== (int)$request->user()->id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $asientos = $graderia->asientos()
+            ->orderBy('fila')
+            ->orderBy('columna')
+            ->get([
+                'id',
+                'fila',
+                'columna',
+                'codigo',
+                'estado',
+                'cliente_nombre',
+                'cliente_celular',
+                'monto',
+                'reservado_at',
+                'pagado_at'
+            ]);
+
+        return response()->json([
+            'graderia' => $graderia,
+            'asientos' => $asientos,
+            'total'    => $asientos->count(),
+
+            // ✅ importante para que el frontend construya igual que "Editar"
+            'layout'   => [
+                'filas'        => (int) $graderia->filas,
+                'columnas'     => (int) $graderia->columnas,
+                'etiqueta_modo'=> (string) $graderia->etiqueta_modo, // fila | columna
+                'start_top'    => (bool) $graderia->start_top,
+                'start_left'   => (bool) $graderia->start_left,
+            ],
+        ]);
+    }
+
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -108,23 +167,25 @@ class GraderiaController extends Controller
             'regenerar_asientos' => 'nullable|boolean',
         ]);
 
-        $changedLayout =
-            (int)$graderia->filas !== (int)$data['filas'] ||
-            (int)$graderia->columnas !== (int)$data['columnas'] ||
-            (string)$graderia->etiqueta_modo !== (string)$data['etiqueta_modo'] ||
-            (bool)$graderia->start_top !== (bool)$data['start_top'] ||
-            (bool)$graderia->start_left !== (bool)$data['start_left'];
-
         $graderia->fill($data);
         $graderia->capacidad_total = ((int)$data['filas']) * ((int)$data['columnas']);
         $graderia->save();
 
-        if (($data['regenerar_asientos'] ?? false) && $changedLayout) {
+        if (($data['regenerar_asientos'] ?? false)) {
             \App\Services\AsientoGenerator::generateFor($graderia, true);
+        } else {
+            // REPARA FALTANTES sin duplicar
+            \App\Services\AsientoGenerator::generateFor($graderia, false);
         }
 
-        return $graderia;
+        return response()->json([
+            'ok' => true,
+            'graderia' => $graderia,
+            'asientos_count' => $graderia->asientos()->count(),
+            'expected' => ((int)$graderia->filas) * ((int)$graderia->columnas),
+        ]);
     }
+
 
     public function destroy(Request $request, Graderia $graderia)
     {
