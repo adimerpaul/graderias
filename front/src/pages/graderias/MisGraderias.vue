@@ -50,6 +50,14 @@
         <q-td :props="props" class="text-center">
           <q-btn-dropdown label="Opciones" no-caps size="10px" dense color="primary">
             <q-list>
+
+              <q-item clickable v-close-popup @click="$router.push(`/mis-graderias/${props.row.id}/venta`)">
+                <q-item-section avatar><q-icon name="confirmation_number" /></q-item-section>
+                <q-item-section><q-item-label>Venta / Asientos</q-item-label></q-item-section>
+              </q-item>
+
+              <q-separator />
+
               <q-item clickable v-close-popup @click="editRow(props.row)">
                 <q-item-section avatar><q-icon name="edit" /></q-item-section>
                 <q-item-section><q-item-label>Editar</q-item-label></q-item-section>
@@ -61,8 +69,10 @@
                 <q-item-section avatar><q-icon name="delete" /></q-item-section>
                 <q-item-section><q-item-label>Eliminar</q-item-label></q-item-section>
               </q-item>
+
             </q-list>
           </q-btn-dropdown>
+
         </q-td>
       </template>
 

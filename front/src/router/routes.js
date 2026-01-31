@@ -24,6 +24,11 @@ const routes = [
         component: () => import('pages/graderias/GraderiaForm.vue'),
         meta: { requiresAuth: true, perm: 'Graderias' }
       },
+      {
+        path: '/mis-graderias/:id/venta',
+        component: () => import('pages/graderias/GraderiaVenta.vue'),
+        meta: { requiresAuth: true, perm: 'Graderias' }
+      },
 
     ]
   },
