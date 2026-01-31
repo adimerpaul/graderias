@@ -46,6 +46,10 @@
                   <q-item-section avatar><q-icon name="print" /></q-item-section>
                   <q-item-section>Imprimir por asientos</q-item-section>
                 </q-item>
+                <q-item clickable @click="openWhatsappTicketsDialog" v-close-popup>
+                  <q-item-section avatar><q-icon name="fa-brands fa-whatsapp" /></q-item-section>
+                  <q-item-section>Mandar boletos por WhatsApp</q-item-section>
+                </q-item>
 
                 <!--                imprirmi por cliente -->
 <!--                imprimir por hacieno-->
@@ -394,6 +398,111 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+    <!-- DIALOG: ENVIAR BOLETOS WHATSAPP -->
+    <q-dialog v-model="waDialog.open">
+      <q-card style="width: 760px; max-width: 96vw;">
+        <q-card-section class="row items-center q-py-sm">
+          <div>
+            <div class="text-subtitle1 text-weight-bold">Mandar boletos por WhatsApp</div>
+            <div class="text-caption text-grey-7">
+              Selecciona un cliente para generar sus boletas (por asiento) y enviarlas.
+            </div>
+          </div>
+          <q-space />
+          <q-btn dense flat round icon="close" v-close-popup />
+        </q-card-section>
+
+        <q-separator />
+
+        <q-card-section class="q-pa-sm">
+          <div class="row items-center q-col-gutter-sm">
+            <div class="col-12 col-md-6">
+              <q-input v-model="waDialog.filter" dense outlined debounce="250" label="Buscar cliente / celular">
+                <template #prepend><q-icon name="search"/></template>
+              </q-input>
+            </div>
+            <div class="col-12 col-md-6">
+              <q-banner dense class="bg-grey-1">
+                <div class="text-caption text-grey-7">Seleccionado</div>
+                <div class="text-weight-bold">
+                  {{ waDialog.selected ? waDialog.selected.nombre : '—' }}
+                </div>
+                <div class="text-caption text-grey-8">
+                  Cel: {{ waDialog.selected ? waDialog.selected.celular : '—' }}
+                </div>
+              </q-banner>
+            </div>
+          </div>
+
+          <q-table
+            class="q-mt-sm"
+            dense
+            flat
+            bordered
+            :rows="waClientsFiltered"
+            :columns="waDialog.columns"
+            row-key="key"
+            :pagination="{ rowsPerPage: 8 }"
+            @row-click="(_, row) => selectWaClient(row)"
+          >
+            <template #body-cell-total="props">
+              <q-td :props="props">
+                {{ money(props.row.total) }} Bs
+              </q-td>
+            </template>
+
+            <template #body-cell_count="props">
+              <q-td :props="props">
+                <q-badge outline color="primary">{{ props.row.count }}</q-badge>
+              </q-td>
+            </template>
+
+            <template #body-cell_estado="props">
+              <q-td :props="props">
+                <q-chip dense :color="props.row.estadoColor" text-color="white">
+                  {{ props.row.estadoLabel }}
+                </q-chip>
+              </q-td>
+            </template>
+          </q-table>
+
+          <q-banner dense class="bg-grey-1 q-mt-sm">
+            <div class="text-caption text-grey-7">
+              Nota: “Enviar” real por WhatsApp requiere backend (WhatsApp Cloud API).
+              Si no lo tienes, se descargará el PDF y se abrirá WhatsApp con mensaje listo.
+            </div>
+          </q-banner>
+        </q-card-section>
+
+        <q-separator />
+
+        <q-card-actions align="between" class="q-px-md q-py-sm">
+          <q-btn flat no-caps label="Cerrar" v-close-popup />
+
+          <div class="row q-gutter-sm">
+            <q-btn
+              no-caps
+              color="grey-8"
+              icon="download"
+              label="Solo generar PDF"
+              :disable="!waDialog.selected || waDialog.generating"
+              :loading="waDialog.generating && waDialog.mode==='PDF'"
+              @click="generarPdfTicketsSeleccionado('PDF')"
+            />
+            <q-btn
+              no-caps
+              color="positive"
+              icon="fa-brands fa-whatsapp"
+              label="Generar y Enviar"
+              :disable="!waDialog.selected || waDialog.generating"
+              :loading="waDialog.generating && waDialog.mode==='SEND'"
+              @click="generarPdfTicketsSeleccionado('SEND')"
+            />
+          </div>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
 
   </q-page>
 </template>
@@ -406,6 +515,20 @@ export default {
 
   data () {
     return {
+      waDialog: {
+        open: false,
+        filter: '',
+        selected: null,
+        generating: false,
+        mode: '',
+        columns: [
+          { name: 'nombre', label: 'Cliente', field: 'nombre', align: 'left', sortable: true },
+          { name: 'celular', label: 'Celular', field: 'celular', align: 'left', sortable: true },
+          { name: 'count', label: 'Asientos', field: 'count', align: 'center', sortable: true },
+          { name: 'total', label: 'Total', field: 'total', align: 'right', sortable: true },
+          { name: 'estado', label: 'Estado', field: 'estadoLabel', align: 'left' }
+        ]
+      },
       totalMontoRealCss: false,
       // asientoSeleccionado: null,
       // asientoSeleccionadoDialog: false,
@@ -458,6 +581,69 @@ export default {
   },
 
   computed: {
+    waClients () {
+      // agrupa SOLO los que tienen cliente + celular (y normalmente RESERVADO/PAGADO)
+      const seats = (this.seatsDB || [])
+        .filter(s => (s.cliente_nombre && String(s.cliente_nombre).trim() !== '') || (s.cliente_celular && String(s.cliente_celular).trim() !== ''))
+        .map(s => ({
+          codigo: s.codigo,
+          estado: this.normalizeEstado(s.estado) || 'LIBRE',
+          cliente_nombre: (s.cliente_nombre || '').trim(),
+          cliente_celular: (s.cliente_celular || '').trim(),
+          monto: (s.monto != null && s.monto !== '' && !isNaN(Number(s.monto))) ? Number(s.monto) : 0,
+          reservado_at: s.reservado_at,
+          pagado_at: s.pagado_at,
+          created_at: s.created_at
+        }))
+
+      const map = {}
+      for (const s of seats) {
+        const key = `${(s.cliente_nombre || '').toUpperCase()}|${(s.cliente_celular || '')}`
+        if (!map[key]) map[key] = { key, nombre: s.cliente_nombre, celular: s.cliente_celular, items: [] }
+        map[key].items.push(s)
+      }
+
+      const groups = Object.values(map).map(g => {
+        const itemsSorted = this.sortSeatsByCodigo(g.items)
+
+        const total = itemsSorted.reduce((acc, it) => acc + (it.monto || 0), 0)
+
+        // estado “dominante” para el chip (si hay PAGADO en cualquiera, mostramos PAGADO)
+        const hasPagado = itemsSorted.some(x => x.estado === 'PAGADO')
+        const hasReserv = itemsSorted.some(x => x.estado === 'RESERVADO')
+        const estadoLabel = hasPagado ? 'PAGADO' : (hasReserv ? 'RESERVADO' : 'MIXTO')
+        const estadoColor = hasPagado ? this.statusMeta.PAGADO.color : (hasReserv ? this.statusMeta.RESERVADO.color : 'grey-8')
+
+        return {
+          key: g.key,
+          nombre: g.nombre,
+          celular: g.celular,
+          count: itemsSorted.length,
+          total,
+          estadoLabel,
+          estadoColor,
+          items: itemsSorted
+        }
+      })
+
+      // ordenar clientes alfabético
+      return groups.sort((a, b) => {
+        const an = (a.nombre || '').toUpperCase()
+        const bn = (b.nombre || '').toUpperCase()
+        if (an < bn) return -1
+        if (an > bn) return 1
+        return (a.celular || '').localeCompare(b.celular || '')
+      })
+    },
+
+    waClientsFiltered () {
+      const f = (this.waDialog.filter || '').trim().toUpperCase()
+      if (!f) return this.waClients
+      return this.waClients.filter(x =>
+        (x.nombre || '').toUpperCase().includes(f) ||
+        (x.celular || '').toUpperCase().includes(f)
+      )
+    },
     totalMontoReal () {
       let sum = 0
       for (const s of this.seatsDB) {
@@ -566,6 +752,172 @@ export default {
   },
 
   methods: {
+    openWhatsappTicketsDialog () {
+      if (!this.graderia) return
+      if (!this.seatsDB || this.seatsDB.length === 0) {
+        this.$alert.error('No hay asientos cargados.')
+        return
+      }
+      this.waDialog.filter = ''
+      this.waDialog.selected = null
+      this.waDialog.open = true
+    },
+
+    selectWaClient (row) {
+      this.waDialog.selected = row
+    },
+
+    normalizePhoneToWa (phone) {
+      // Ajusta a tu realidad. Ej: Bolivia +591
+      // si ya viene con +, lo dejamos; si viene "7xxxxxxx" le ponemos 591
+      const raw = String(phone || '').replace(/[^\d+]/g, '')
+      if (!raw) return ''
+      if (raw.startsWith('+')) return raw
+      if (raw.startsWith('591')) return `+${raw}`
+      // si es 8 dígitos típico BO (7xxxxxxx)
+      if (raw.length === 8) return `+591${raw}`
+      return `+${raw}`
+    },
+
+    async generarPdfTicketsSeleccionado (mode) {
+      if (!this.waDialog.selected) return
+      this.waDialog.generating = true
+      this.waDialog.mode = mode
+
+      try {
+        const g = this.waDialog.selected
+        const doc = this.buildTicketsPdf(g) // genera “boletas” (1 página por asiento)
+
+        if (mode === 'PDF') {
+          const filename = `boletos_${this.graderiaId}_${Date.now()}.pdf`
+          doc.save(filename)
+          this.$alert.success('PDF generado')
+          return
+        }
+
+        // SEND: Opción A (sin backend) = descargar + abrir WhatsApp con texto
+        // (WhatsApp web no permite adjuntar automáticamente desde navegador)
+        const filename = `boletos_${this.graderiaId}_${Date.now()}.pdf`
+        doc.save(filename)
+
+        const waPhone = this.normalizePhoneToWa(g.celular)
+        const msg =
+          `Hola ${this.safe(g.nombre)}. Aquí están tus boletos.\n` +
+          `Gradería: ${this.safe(this.graderia?.nombre)}\n` +
+          `Asientos: ${g.items.map(x => x.codigo).join(', ')}\n` +
+          `Total: ${this.money(g.total)} Bs\n` +
+          `Enviado por: ${this.safe(this.$store?.user?.name || this.$store?.user?.nombre || '')}`
+
+        const url = `https://wa.me/${waPhone.replace('+','')}?text=${encodeURIComponent(msg)}`
+        window.open(url, '_blank')
+
+        this.$alert.success('WhatsApp abierto. Adjunta el PDF descargado y envía.')
+
+        // ✅ Opción B (PRO): si tienes endpoint, comenta lo de arriba y usa esto:
+        // await this.sendPdfToBackendAndWhatsApp(doc, g)
+
+      } catch (e) {
+        this.$alert.error(e.message || 'No se pudo generar/enviar los boletos')
+      } finally {
+        this.waDialog.generating = false
+        this.waDialog.mode = ''
+      }
+    },
+
+    buildTicketsPdf (group) {
+      // “Boleta” bonita: 1 asiento = 1 página
+      // Letter portrait
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' })
+
+      const now = this.fmtDateTime(new Date())
+      const usuario = this.safe(this.$store?.user?.name || this.$store?.user?.nombre || '')
+      const graderia = this.safe(this.graderia?.nombre)
+      const direccion = this.safe(this.graderia?.direccion)
+
+      const items = this.sortSeatsByCodigo(group.items)
+
+      // helpers simples de layout
+      const pageW = doc.internal.pageSize.getWidth()
+      const margin = 40
+
+      const drawTicket = (it, idx) => {
+        if (idx > 0) doc.addPage()
+
+        // marco
+        doc.setLineWidth(1)
+        doc.rect(margin, 35, pageW - margin*2, 720)
+
+        // encabezado
+        doc.setFontSize(16)
+        doc.text('BOLETO / ENTRADA', margin + 14, 70)
+
+        doc.setFontSize(10)
+        doc.text(`Gradería: ${graderia}`, margin + 14, 95)
+        if (direccion) doc.text(`Dirección: ${direccion}`, margin + 14, 112)
+
+        // asiento grande
+        doc.setFontSize(42)
+        doc.text(this.safe(it.codigo), margin + 14, 175)
+
+        // estado y monto
+        doc.setFontSize(12)
+        doc.text(`Estado: ${this.statusLabel(it.estado)}`, margin + 14, 210)
+        doc.text(`Monto: ${this.money(it.monto || 0)} Bs`, margin + 14, 230)
+
+        // cliente
+        doc.setFontSize(11)
+        doc.text(`Cliente: ${this.safe(group.nombre)}`, margin + 14, 265)
+        doc.text(`Celular: ${this.safe(group.celular)}`, margin + 14, 285)
+
+        // fechas
+        doc.setFontSize(10)
+        doc.text(`Creado: ${this.fmtDateTime(it.created_at)}`, margin + 14, 320)
+        doc.text(`Reservado: ${this.fmtDateTime(it.reservado_at)}`, margin + 14, 338)
+        doc.text(`Pagado: ${this.fmtDateTime(it.pagado_at)}`, margin + 14, 356)
+
+        // footer auditoría
+        doc.setFontSize(9)
+        doc.text(`Generado: ${now}`, margin + 14, 720)
+        doc.text(`Usuario: ${usuario}`, margin + 14, 735)
+
+        // “corte” (línea punteada)
+        doc.setLineWidth(0.7)
+        doc.setLineDash([4, 4], 0)
+        doc.line(margin, 470, pageW - margin, 470)
+        doc.setLineDash([], 0)
+
+        doc.setFontSize(10)
+        doc.text('Comprobante (copia)', margin + 14, 500)
+        doc.setFontSize(9)
+        doc.text(`Asiento: ${this.safe(it.codigo)} — Cliente: ${this.safe(group.nombre)} — Total cliente: ${this.money(group.total)} Bs`, margin + 14, 520)
+      }
+
+      items.forEach((it, idx) => drawTicket(it, idx))
+      return doc
+    },
+
+// ✅ Si quieres envío REAL, usa backend:
+// async sendPdfToBackendAndWhatsApp (doc, group) {
+//   const blob = doc.output('blob')
+//   const base64 = await new Promise((resolve, reject) => {
+//     const r = new FileReader()
+//     r.onload = () => resolve(String(r.result).split(',')[1])
+//     r.onerror = reject
+//     r.readAsDataURL(blob)
+//   })
+//
+//   const payload = {
+//     graderia_id: this.graderiaId,
+//     cliente_nombre: group.nombre,
+//     cliente_celular: group.celular,
+//     asiento_codigos: group.items.map(x => x.codigo),
+//     pdf_base64: base64
+//   }
+//
+//   await this.$axios.post('whatsapp/boletos', payload)
+//   this.$alert.success('Boletos enviados por WhatsApp')
+// }
+
     validarAsientoEdit (payload) {
       // reglas simples (ajusta si quieres)
       if (payload.estado === 'RESERVADO' || payload.estado === 'PAGADO') {
