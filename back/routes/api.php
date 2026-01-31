@@ -3,6 +3,7 @@
 //use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\GraderiaController;
+use App\Http\Controllers\AsientoController;
 
 Route::post('/login', [App\Http\Controllers\UserController::class, 'login']);
 
@@ -30,5 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('mis-graderias/{graderia}', [GraderiaController::class, 'destroy']);
 
     // Asientos (si quieres verlos por gradería)
+    Route::get('mis-graderias/{graderia}', [GraderiaController::class, 'show']);
     Route::get('mis-graderias/{graderia}/asientos', [AsientoController::class, 'indexByGraderia']);
+
 });
