@@ -43,4 +43,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/mis-graderias/{graderia}/repair', [GraderiaController::class, 'repair']);
 
+    Route::patch('mis-graderias/{graderia}/asientos/{asiento}', [AsientoController::class, 'updateOne']);
+
+
 });

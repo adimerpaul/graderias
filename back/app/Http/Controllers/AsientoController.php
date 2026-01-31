@@ -9,6 +9,86 @@ use Illuminate\Support\Facades\DB;
 
 class AsientoController extends Controller
 {
+    // PATCH /mis-graderias/{graderia}/asientos/{asiento}
+    public function updateOne(Request $request, Graderia $graderia, Asiento $asiento)
+    {
+        if ((int)$graderia->user_id !== (int)$request->user()->id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // seguridad: que el asiento sea de esa graderia
+        if ((int)$asiento->graderia_id !== (int)$graderia->id) {
+            return response()->json(['message' => 'Asiento no pertenece a la gradería'], 422);
+        }
+
+        $data = $request->validate([
+            'estado'          => 'required|in:LIBRE,RESERVADO,PAGADO,BLOQUEADO',
+            'cliente_nombre'  => 'nullable|string|max:120',
+            'cliente_celular' => 'nullable|string|max:40',
+            'monto'           => 'nullable|numeric|min:0',
+        ]);
+
+        DB::transaction(function () use ($asiento, $data) {
+
+            switch ($data['estado']) {
+                case 'LIBRE':
+                    $asiento->estado = 'LIBRE';
+                    $asiento->cliente_nombre = null;
+                    $asiento->cliente_celular = null;
+                    $asiento->monto = null;
+                    $asiento->reservado_at = null;
+                    $asiento->pagado_at = null;
+                    break;
+
+                case 'BLOQUEADO':
+                    $asiento->estado = 'BLOQUEADO';
+                    $asiento->cliente_nombre = null;
+                    $asiento->cliente_celular = null;
+                    $asiento->monto = null;
+                    $asiento->reservado_at = null;
+                    $asiento->pagado_at = null;
+                    break;
+
+                case 'RESERVADO':
+                    // si quieres obligar aquí también, valida:
+                    if (empty($data['cliente_nombre']) || empty($data['cliente_celular']) || $data['monto'] === null) {
+                        throw new \Exception('Para RESERVADO se requiere cliente, celular y monto.');
+                    }
+
+                    $asiento->estado = 'RESERVADO';
+                    $asiento->cliente_nombre = $data['cliente_nombre'];
+                    $asiento->cliente_celular = $data['cliente_celular'];
+                    $asiento->monto = $data['monto'];
+                    $asiento->reservado_at = now();
+                    $asiento->pagado_at = null;
+                    break;
+
+                case 'PAGADO':
+                    if (empty($data['cliente_nombre']) || empty($data['cliente_celular']) || $data['monto'] === null) {
+                        throw new \Exception('Para PAGADO se requiere cliente, celular y monto.');
+                    }
+
+                    $asiento->estado = 'PAGADO';
+                    $asiento->cliente_nombre = $data['cliente_nombre'];
+                    $asiento->cliente_celular = $data['cliente_celular'];
+                    $asiento->monto = $data['monto'];
+                    $asiento->reservado_at = $asiento->reservado_at ?: now();
+                    $asiento->pagado_at = now();
+                    break;
+            }
+
+            $asiento->save();
+        });
+
+        // refresca desde BD por si quieres
+        $asiento->refresh();
+
+        return response()->json([
+            'ok' => true,
+            'asiento' => $asiento
+        ]);
+    }
+
     // POST /mis-graderias/{graderia}/asientos/bulk
     public function bulkUpdate(Request $request, Graderia $graderia)
     {

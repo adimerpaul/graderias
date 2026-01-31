@@ -37,16 +37,10 @@ class GraderiaController extends Controller
             ->orderBy('fila')
             ->orderBy('columna')
             ->get([
-                'id',
-                'fila',
-                'columna',
-                'codigo',
-                'estado',
-                'cliente_nombre',
-                'cliente_celular',
-                'monto',
-                'reservado_at',
-                'pagado_at'
+                'id','fila','columna','codigo','estado',
+                'cliente_nombre','cliente_celular','monto',
+                'reservado_at','pagado_at',
+                'created_at'
             ]);
 
         return response()->json([
