@@ -145,13 +145,13 @@ class GraderiaController extends Controller
 
     public function update(Request $request, Graderia $graderia)
     {
-        if ((int)$graderia->user_id !== (int)$request->user()->id) {
+        if ((int) $graderia->user_id !== (int) $request->user()->id) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
         $data = $request->validate([
             'nombre' => 'nullable|string|max:120',
-            'direccion' => 'required|string|max:255',
+            'direccion' => 'nullable|string|max:255',
             'filas' => 'required|integer|min:1|max:500',
             'columnas' => 'required|integer|min:1|max:500',
             'etiqueta_modo' => 'required|in:fila,columna',
@@ -162,13 +162,18 @@ class GraderiaController extends Controller
         ]);
 
         $graderia->fill($data);
-        $graderia->capacidad_total = ((int)$data['filas']) * ((int)$data['columnas']);
+        $graderia->capacidad_total = ((int) $data['filas']) * ((int) $data['columnas']);
         $graderia->save();
 
         if (($data['regenerar_asientos'] ?? false)) {
+            // ✅ REGENERAR: borrar TODOS los asientos y crearlos de nuevo en LIBRE
+            $graderia->asientos()->forceDelete();
+
+            // true/false aquí depende de tu AsientoGenerator, pero da igual
+            // porque ya borraste todo. Puedes dejar true.
             \App\Services\AsientoGenerator::generateFor($graderia, true);
         } else {
-            // REPARA FALTANTES sin duplicar
+            // ✅ REPARA FALTANTES sin duplicar (mantiene estados existentes)
             \App\Services\AsientoGenerator::generateFor($graderia, false);
         }
 
@@ -176,9 +181,10 @@ class GraderiaController extends Controller
             'ok' => true,
             'graderia' => $graderia,
             'asientos_count' => $graderia->asientos()->count(),
-            'expected' => ((int)$graderia->filas) * ((int)$graderia->columnas),
+            'expected' => ((int) $graderia->filas) * ((int) $graderia->columnas),
         ]);
     }
+
 
 
     public function destroy(Request $request, Graderia $graderia)

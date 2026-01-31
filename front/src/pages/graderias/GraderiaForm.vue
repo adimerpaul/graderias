@@ -75,7 +75,30 @@
                 label="Regenerar asientos (borra y crea de nuevo)"
                 color="negative"
               />
+
+              <!-- ⚠️ ADVERTENCIA GRANDE -->
+              <q-banner
+                v-if="form.regenerar_asientos"
+                class="bg-red-1 text-negative q-mt-sm"
+                dense
+                rounded
+              >
+                <div class="text-subtitle1 text-weight-bold">
+                  ⚠️ ADVERTENCIA IMPORTANTE
+                </div>
+
+                <div class="text-body2 q-mt-xs">
+                  Al <b>regenerar los asientos</b>:
+                  <ul class="q-mt-xs">
+                    <li>❌ Se eliminarán <b>todos los asientos existentes</b></li>
+                    <li>❌ Se perderán <b>reservas, pagos y clientes</b></li>
+                    <li>✔️ Todos los asientos volverán a estado <b>LIBRE</b></li>
+                  </ul>
+                  <b>Esta acción no se puede deshacer.</b>
+                </div>
+              </q-banner>
             </div>
+
           </div>
 
           <div class="row justify-end q-gutter-sm q-mt-sm">
@@ -501,9 +524,41 @@ export default {
     },
 
     save () {
+      // ⚠️ si está marcado regenerar_asientos → confirmar
+      if (this.isEdit && this.form.regenerar_asientos) {
+        this.$q.dialog({
+          title: '⚠️ Confirmar regeneración',
+          message: `
+        <div class="text-negative">
+          <b>Esta acción eliminará TODOS los asientos existentes.</b><br><br>
+          Se perderán reservas, pagos y clientes.<br>
+          Todos los asientos volverán a estado <b>LIBRE</b>.<br><br>
+          <b>¿Estás completamente seguro de continuar?</b>
+        </div>
+      `,
+          html: true,
+          ok: {
+            label: 'Sí, regenerar asientos',
+            color: 'negative'
+          },
+          cancel: {
+            label: 'Cancelar',
+            color: 'grey'
+          },
+          persistent: true
+        }).onOk(() => {
+          this.doSave()
+        })
+
+        return
+      }
+
+      // normal
+      this.doSave()
+    },
+    doSave () {
       this.loading = true
       const id = this.$route.params.id
-
       const payload = { ...this.form }
 
       const req = this.isEdit
@@ -511,12 +566,19 @@ export default {
         : this.$axios.post('mis-graderias', payload)
 
       req.then(() => {
-        this.$alert.success(this.isEdit ? 'Gradería actualizada' : 'Gradería creada')
+        this.$alert.success(
+          this.isEdit ? 'Gradería actualizada correctamente' : 'Gradería creada'
+        )
         this.$router.push('/mis-graderias')
       })
-        .catch(e => this.$alert.error(e.response?.data?.message || 'No se pudo guardar'))
-        .finally(() => { this.loading = false })
+        .catch(e => {
+          this.$alert.error(e.response?.data?.message || 'No se pudo guardar')
+        })
+        .finally(() => {
+          this.loading = false
+        })
     }
+
   }
 }
 </script>
