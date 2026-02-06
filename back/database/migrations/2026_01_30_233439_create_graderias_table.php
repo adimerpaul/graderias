@@ -13,6 +13,7 @@ return new class extends Migration {
             // Identificación
             $table->string('nombre', 120)->nullable(); // ej: "Gradería 12 - Socavón"
             $table->string('codigo', 40)->nullable()->unique(); // opcional: G-001
+            $table->string('code', 32)->unique(); // codigo publico para URL
 
             // Dirección principal y referencias
             $table->string('direccion', 255)->nullable();

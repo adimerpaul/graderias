@@ -6,6 +6,7 @@ use App\Http\Controllers\GraderiaController;
 use App\Http\Controllers\AsientoController;
 
 Route::post('/login', [App\Http\Controllers\UserController::class, 'login']);
+Route::get('/public/graderias/{code}', [GraderiaController::class, 'publicShowByCode']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/me/password', [App\Http\Controllers\UserController::class, 'changeMyPassword']);

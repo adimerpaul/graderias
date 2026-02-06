@@ -13,7 +13,7 @@ class Graderia extends Model implements AuditableContract
     protected $table = 'graderias';
 
     protected $fillable = [
-        'nombre','codigo',
+        'nombre','codigo','code',
         'direccion','ref_izquierda','ref_derecha','ref_frente',
         'filas','columnas','capacidad_total',
         'etiqueta_modo','start_top','start_left',

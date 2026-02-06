@@ -1,5 +1,12 @@
 const routes = [
   {
+    path: '/g/:code',
+    component: () => import('layouts/PublicLayout.vue'),
+    children: [
+      { path: '', component: () => import('pages/graderias/PublicGraderia.vue') }
+    ]
+  },
+  {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),
     children: [

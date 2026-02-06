@@ -4,9 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\Graderia;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class GraderiaController extends Controller
 {
+    private function generateUniqueCode(): string
+    {
+        do {
+            $code = Str::upper(Str::random(10));
+        } while (Graderia::where('code', $code)->exists());
+
+        return $code;
+    }
+
     public function repair(Request $request, Graderia $graderia)
     {
         if ((int)$graderia->user_id !== (int)$request->user()->id) {
@@ -135,6 +145,7 @@ class GraderiaController extends Controller
         $g = new Graderia();
         $g->fill($data);
         $g->user_id = $user->id;
+        $g->code = $this->generateUniqueCode();
         $g->capacidad_total = ((int)$data['filas']) * ((int)$data['columnas']);
         $g->save();
 
@@ -195,5 +206,40 @@ class GraderiaController extends Controller
 
         $graderia->delete();
         return response()->json(['ok' => true]);
+    }
+
+    // GET /public/graderias/{code}
+    public function publicShowByCode(Request $request, string $code)
+    {
+        $graderia = Graderia::where('code', $code)
+            ->where('activo', true)
+            ->first();
+
+        if (!$graderia) {
+            return response()->json(['message' => 'No encontrado'], 404);
+        }
+
+        $asientos = $graderia->asientos()
+            ->orderBy('fila')
+            ->orderBy('columna')
+            ->get([
+                'fila',
+                'columna',
+                'codigo',
+                'estado'
+            ]);
+
+        return response()->json([
+            'graderia' => $graderia,
+            'asientos' => $asientos,
+            'total'    => $asientos->count(),
+            'layout'   => [
+                'filas'        => (int) $graderia->filas,
+                'columnas'     => (int) $graderia->columnas,
+                'etiqueta_modo'=> (string) $graderia->etiqueta_modo,
+                'start_top'    => (bool) $graderia->start_top,
+                'start_left'   => (bool) $graderia->start_left,
+            ],
+        ]);
     }
 }

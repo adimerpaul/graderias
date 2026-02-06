@@ -50,6 +50,15 @@
                   <q-item-section avatar><q-icon name="fa-brands fa-whatsapp" /></q-item-section>
                   <q-item-section>Mandar boletos por WhatsApp</q-item-section>
                 </q-item>
+                <q-separator />
+                <q-item clickable @click="copyPublicLink" v-close-popup>
+                  <q-item-section avatar><q-icon name="link" /></q-item-section>
+                  <q-item-section>Copiar link publico</q-item-section>
+                </q-item>
+                <q-item clickable @click="openPublicLink" v-close-popup>
+                  <q-item-section avatar><q-icon name="open_in_new" /></q-item-section>
+                  <q-item-section>Abrir link publico</q-item-section>
+                </q-item>
 
                 <!--                imprirmi por cliente -->
 <!--                imprimir por hacieno-->
@@ -777,6 +786,44 @@ export default {
       this.waDialog.filter = ''
       this.waDialog.selected = null
       this.waDialog.open = true
+    },
+
+    publicLink () {
+      if (!this.graderia?.code) return ''
+      return `${window.location.origin}/g/${encodeURIComponent(this.graderia.code)}`
+    },
+
+    async copyPublicLink () {
+      const link = this.publicLink()
+      if (!link) {
+        this.$alert.error('No hay cÃ³digo pÃºblico para esta graderÃ­a.')
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(link)
+        this.$alert.success('Link copiado')
+      } catch (e) {
+        // fallback simple
+        const el = document.createElement('textarea')
+        el.value = link
+        el.setAttribute('readonly', '')
+        el.style.position = 'absolute'
+        el.style.left = '-9999px'
+        document.body.appendChild(el)
+        el.select()
+        document.execCommand('copy')
+        document.body.removeChild(el)
+        this.$alert.success('Link copiado')
+      }
+    },
+
+    openPublicLink () {
+      const link = this.publicLink()
+      if (!link) {
+        this.$alert.error('No hay cÃ³digo pÃºblico para esta graderÃ­a.')
+        return
+      }
+      window.open(link, '_blank')
     },
 
     selectWaClient (row) {
