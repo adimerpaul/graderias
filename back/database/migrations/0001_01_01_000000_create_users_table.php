@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('email')->nullable();
 //            clave
             $table->string('clave')->nullable();
+            $table->string('telefono_contacto_1', 30)->nullable();
+            $table->string('telefono_contacto_2', 30)->nullable();
             $table->string('avatar')->default('default.png');
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');

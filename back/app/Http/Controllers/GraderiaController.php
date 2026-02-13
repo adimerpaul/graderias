@@ -213,6 +213,7 @@ class GraderiaController extends Controller
     {
         $graderia = Graderia::where('code', $code)
             ->where('activo', true)
+            ->with('user')
             ->first();
 
         if (!$graderia) {

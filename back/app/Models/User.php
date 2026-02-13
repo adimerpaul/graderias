@@ -20,7 +20,9 @@ class User extends Authenticatable implements AuditableContract
         'avatar',
         'email',
         'password',
-        'clave'
+        'clave',
+        'telefono_contacto_1',
+        'telefono_contacto_2',
     ];
 
     protected $hidden = [

@@ -165,7 +165,16 @@ class UserController extends Controller{
     }
     function update(Request $request, $id){
         $user = User::find($id);
-        $user->update($request->except('password'));
+        $validatedData = $request->validate([
+            'name' => 'sometimes|nullable|string|max:255',
+            'username' => 'sometimes|nullable|string|max:255',
+            'email' => 'sometimes|nullable|email|max:255',
+            'avatar' => 'sometimes|nullable|string|max:255',
+            'role' => 'sometimes|nullable|string|max:100',
+            'telefono_contacto_1' => 'sometimes|nullable|string|max:30',
+            'telefono_contacto_2' => 'sometimes|nullable|string|max:30',
+        ]);
+        $user->update($validatedData);
         error_log('User' . json_encode($user));
         return $user;
     }
@@ -181,12 +190,14 @@ class UserController extends Controller{
             'username' => 'required',
             'password' => 'required',
             'name' => 'required',
+            'telefono_contacto_1' => 'nullable|string|max:30',
+            'telefono_contacto_2' => 'nullable|string|max:30',
 //            'email' => 'required|email|unique:users',
         ]);
         if (User::where('username', $request->username)->exists()) {
             return response()->json(['message' => 'El nombre de usuario ya existe'], 422);
         }
-        $user = User::create($request->all());
+        $user = User::create($validatedData);
 //        crear los permisos de
 //        'Dashboard',
 //            'Graderias',

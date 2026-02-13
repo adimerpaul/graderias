@@ -25,4 +25,8 @@ class Graderia extends Model implements AuditableContract
     {
         return $this->hasMany(Asiento::class, 'graderia_id');
     }
+    function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

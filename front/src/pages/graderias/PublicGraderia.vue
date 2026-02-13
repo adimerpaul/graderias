@@ -4,10 +4,15 @@
       <q-card-section class="row items-center q-py-sm">
         <div>
           <div class="text-subtitle1 text-weight-bold">
-            {{ graderia?.nombre || 'GraderÃ­a' }}
+            {{ graderia?.nombre || 'Graderias' }}
           </div>
           <div class="text-caption text-grey-7">
             {{ graderia?.direccion || '' }}
+            <span v-if="graderia?.user?.telefono_contacto_1 || graderia?.user?.telefono_contacto_2">
+              - Contacto:
+            {{graderia.user.telefono_contacto_1}}
+            {{graderia.user.telefono_contacto_2}}
+            </span>
           </div>
         </div>
 

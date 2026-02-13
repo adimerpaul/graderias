@@ -156,6 +156,8 @@
             <q-input v-model="user.name" label="Nombre" dense outlined :rules="[req]" class="q-mb-sm" />
             <q-input v-model="user.username" label="Usuario" dense outlined :rules="[req]" class="q-mb-sm" />
             <q-input v-model="user.email" label="Email" dense outlined type="email" class="q-mb-sm" />
+            <q-input v-model="user.telefono_contacto_1" label="Teléfono de contacto 1" dense outlined class="q-mb-sm" />
+            <q-input v-model="user.telefono_contacto_2" label="Teléfono de contacto 2" dense outlined class="q-mb-sm" />
 
             <q-input
               v-if="!user.id"
@@ -279,6 +281,8 @@ export default {
         { name: 'name', label: 'Nombre', align: 'left', field: 'name' },
         { name: 'username', label: 'Usuario', align: 'left', field: 'username' },
         { name: 'email', label: 'Email', align: 'left', field: 'email' },
+        { name: 'telefono_contacto_1', label: 'Contacto 1', align: 'left', field: 'telefono_contacto_1' },
+        { name: 'telefono_contacto_2', label: 'Contacto 2', align: 'left', field: 'telefono_contacto_2' },
         { name: 'role', label: 'Rol', align: 'left', field: 'role' },
         {
           name: 'permissions',
@@ -325,6 +329,8 @@ export default {
         name: '',
         username: '',
         email: '',
+        telefono_contacto_1: '',
+        telefono_contacto_2: '',
         password: '',
         role: 'Operador'
       }
@@ -332,7 +338,11 @@ export default {
     },
 
     userEdit (u) {
-      this.user = { ...u }
+      this.user = {
+        ...u,
+        telefono_contacto_1: u.telefono_contacto_1 || '',
+        telefono_contacto_2: u.telefono_contacto_2 || ''
+      }
       this.userDialog = true
     },
 

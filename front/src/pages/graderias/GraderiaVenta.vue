@@ -177,7 +177,10 @@
 
                     <div style="font-size: 11px; margin-top: 2px;">
                       <span v-if="seat.cliente_nombre" class="text-grey-9">
-                        {{ seat.cliente_nombre }}
+                        {{ seat.cliente_nombre }} <br>
+                        <span style="font-size: 10px;" class="text-grey-9`">
+                          {{seat.cliente_celular}}
+                        </span>
                         <br>
                         {{ seat.monto }} Bs
                       </span>
